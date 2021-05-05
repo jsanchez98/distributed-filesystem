@@ -1,3 +1,3 @@
 # distributed-filesystem
 
-for Distributed Systems and Networks
+for Distributed Systems and Networks module
