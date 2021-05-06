@@ -1,12 +1,14 @@
-import java.io.IOException;
 import java.io.*;
 import java.net.*;
+import java.util.ArrayList;
+import java.util.concurrent.*;
 
 public class Controller {
     static int cport;
     static int R;
     static int timeout;
     static int rebalancePeriod;
+    static ConcurrentHashMap<Dstore, ConcurrentHashMap<String, Integer>> index;
 
     Controller(String[] args){
         cport = Integer.parseInt(args[0]);
@@ -16,8 +18,6 @@ public class Controller {
     }
 
     public static void main(String[] args){
-        new Controller(args);
-
         try{
             ServerSocket ss = new ServerSocket(4323);
             for(;;){
@@ -25,14 +25,46 @@ public class Controller {
                 Socket client = ss.accept();
                 System.out.println("connected");
                 InputStream in = client.getInputStream();
-                byte[] buf = new byte[1000]; int buflen = 0;
-                String firstBuffer = new String(buf,0, buflen);
-                int firstSpace=firstBuffer.indexOf(" ");
-                String command=firstBuffer.substring(0,firstSpace);
-                System.out.println("command " + command);
+                byte[] bytes = new byte[1000]; int bytelen;
+                bytelen = in.read(bytes);
+
+                ArrayList<String> clientArgs = getArguments(bytes, bytelen);
+                handleCommand(clientArgs);
+
             }
         } catch (Exception e){
             System.out.println(e.getMessage());
         }
+    }
+
+    public static void handleCommand(ArrayList<String> clientArgs){
+        String command = clientArgs.get(0);
+
+        if(command.equals("STORE")){
+            String filename = clientArgs.get(1);
+            int filesize = Integer.parseInt(clientArgs.get(2));
+
+            updateIndex(filename, filesize);
+        }
+    }
+
+    /**
+     * Method to extract arguments from bytes of client's
+     * input stream
+     * @param bytes
+     * @return argumentList
+     */
+    public static ArrayList<String> getArguments(byte[] bytes, int bytelen){
+        ArrayList<String> argumentList = new ArrayList<>();
+        String firstBuffer = new String(bytes,0, bytelen);
+        int firstSpace = firstBuffer.indexOf(" ");
+        String command = firstBuffer.substring(0, firstSpace);
+        argumentList.add(command);
+
+        return argumentList;
+    }
+
+    public static void updateIndex(String filename, int filesize){
+
     }
 }
