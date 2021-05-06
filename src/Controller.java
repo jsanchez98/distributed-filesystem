@@ -19,9 +19,10 @@ public class Controller {
 
     public static void main(String[] args){
         try{
-            ServerSocket ss = new ServerSocket(4323);
+            ServerSocket ss = new ServerSocket(cport);
             for(;;){
                 System.out.println("Waiting for connection");
+                System.out.println(cport + " " + R + " " + timeout + " " + rebalancePeriod);
                 Socket client = ss.accept();
                 System.out.println("connected");
                 InputStream in = client.getInputStream();
@@ -60,6 +61,16 @@ public class Controller {
         int firstSpace = firstBuffer.indexOf(" ");
         String command = firstBuffer.substring(0, firstSpace);
         argumentList.add(command);
+
+        int secondSpace = firstBuffer.indexOf(" ", firstSpace + 1);
+        String fileName = firstBuffer.substring(firstSpace + 1, secondSpace);
+        System.out.println("fileName " + fileName);
+        argumentList.add(fileName);
+
+        int thirdSpace = firstBuffer.indexOf(" ", secondSpace+1);
+        String fileSize = firstBuffer.substring(secondSpace + 1, thirdSpace);
+        System.out.println(fileSize);
+        argumentList.add(fileSize);
 
         return argumentList;
     }
