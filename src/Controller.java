@@ -10,14 +10,12 @@ public class Controller {
     static int rebalancePeriod;
     static ConcurrentHashMap<Dstore, ConcurrentHashMap<String, Integer>> index;
 
-    Controller(String[] args){
+    public static void main(String[] args){
         cport = Integer.parseInt(args[0]);
         R = Integer.parseInt(args[1]);
         timeout = Integer.parseInt(args[2]);
         rebalancePeriod = Integer.parseInt(args[3]);
-    }
 
-    public static void main(String[] args){
         try{
             ServerSocket ss = new ServerSocket(cport);
             for(;;){
@@ -30,11 +28,11 @@ public class Controller {
                 bytelen = in.read(bytes);
 
                 ArrayList<String> clientArgs = getArguments(bytes, bytelen);
-                handleCommand(clientArgs);
 
+                handleCommand(clientArgs);
             }
         } catch (Exception e){
-            System.out.println(e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -42,10 +40,14 @@ public class Controller {
         String command = clientArgs.get(0);
 
         if(command.equals("STORE")){
-            String filename = clientArgs.get(1);
-            int filesize = Integer.parseInt(clientArgs.get(2));
+            try {
+                String filename = clientArgs.get(1);
+                int filesize = Integer.parseInt(clientArgs.get(2));
 
-            updateIndex(filename, filesize);
+                updateIndex(filename, filesize);
+            } catch (Exception e){
+                e.printStackTrace();
+            }
         }
     }
 
@@ -63,14 +65,15 @@ public class Controller {
         argumentList.add(command);
 
         int secondSpace = firstBuffer.indexOf(" ", firstSpace + 1);
+        System.out.println("secondSpace:" + secondSpace);
         String fileName = firstBuffer.substring(firstSpace + 1, secondSpace);
         System.out.println("fileName " + fileName);
         argumentList.add(fileName);
 
-        int thirdSpace = firstBuffer.indexOf(" ", secondSpace+1);
-        String fileSize = firstBuffer.substring(secondSpace + 1, thirdSpace);
-        System.out.println(fileSize);
+        int end = firstBuffer.length();
+        String fileSize = firstBuffer.substring(secondSpace + 1, end);
         argumentList.add(fileSize);
+        System.out.println("filesize:" + fileSize);
 
         return argumentList;
     }
