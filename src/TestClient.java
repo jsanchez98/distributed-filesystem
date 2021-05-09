@@ -6,10 +6,11 @@ public class TestClient {
         try {
             InetAddress localhost = InetAddress.getLocalHost();
             Socket socket = new Socket(localhost, 4323);
+            BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(socket.getInputStream()));
+
             OutputStream out = socket.getOutputStream();
             out.write((args[0] + " " + args[1] + " " + args[2]).getBytes());
-            BufferedReader reader = new BufferedReader(
-                                            new InputStreamReader(socket.getInputStream()));
             String response = reader.readLine();
             System.out.println("Response: " + response);
             out.close();

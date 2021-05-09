@@ -6,9 +6,11 @@ public class Connection {
     public OutputStream out;
     public BufferedReader reader;
     public PrintWriter writer;
+    public Socket socket;
 
     Connection(Socket socket){
         try {
+            this.socket = socket;
             this.in = socket.getInputStream();
             this.out = socket.getOutputStream();
             this.reader = new BufferedReader(
@@ -23,6 +25,7 @@ public class Connection {
     public void write(String message){
         System.out.println("write entered");
         writer.println(message);
+        writer.flush();
     }
 
     public void writeBytes(byte[] bytes) throws IOException {

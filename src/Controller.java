@@ -9,7 +9,7 @@ public class Controller {
     static int R;
     static int timeout;
     static int rebalancePeriod;
-    static ConcurrentHashMap<Dstore, ConcurrentHashMap<String, Integer>> index;
+    static ConcurrentHashMap<String, ConcurrentHashMap<String, Integer>> index;
     static ConcurrentHashMap<String, Connection> connections;
 
     public static void main(String[] args){
@@ -25,7 +25,7 @@ public class Controller {
         for(int i = 0; i < R; i++){
             ConcurrentHashMap<String, Integer> file = new ConcurrentHashMap<>();
             file.put("filename", 3);
-            index.put(new Dstore(i), file);
+            index.put(Integer.toString(i), file);
         }
 
         try{
@@ -86,7 +86,7 @@ public class Controller {
 
         int secondSpace = firstBuffer.indexOf(" ", firstSpace + 1);
         String fileName = firstBuffer.substring(firstSpace + 1, secondSpace);
-        System.out.println("fileName " + fileName);
+        System.out.println("fileName: " + fileName);
         argumentList.add(fileName);
 
         int end = firstBuffer.length();
@@ -100,13 +100,13 @@ public class Controller {
     public static void updateIndex(String filename, int filesize){
         System.out.println("store in progress");
 
-        Iterator<Dstore> it = index.keySet().iterator();
+        Iterator<String> it = index.keySet().iterator();
         StringBuilder portString = new StringBuilder();
 
         portString.append("STORE_TO ");
 
         for(int i = 0; i < R; i++){
-            portString.append(it.next().getPort() + " ");
+            portString.append(it.next() + " ");
         }
 
         portString.append("\n");
