@@ -45,4 +45,11 @@ public class Connection {
     public int readBytes(byte[] bytes) throws IOException {
         return in.read(bytes);
     }
+
+    public void close() throws IOException {
+        out.close();
+        in.close();
+        reader.close();
+        writer.close();
+    }
 }

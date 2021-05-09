@@ -21,6 +21,10 @@ public class Dstore {
     public void start(){
         try {
             InetAddress localhost = InetAddress.getLocalHost();
+            Socket socket = new Socket(localhost, 4323);
+            Connection controllerConnection = new Connection(socket);
+            controllerConnection.write("dstore " + Integer.toString(port));
+
         } catch (Exception e){
             e.printStackTrace();
         }

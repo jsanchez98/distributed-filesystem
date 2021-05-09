@@ -10,7 +10,8 @@ public class Controller {
     static int timeout;
     static int rebalancePeriod;
     static ConcurrentHashMap<String, ConcurrentHashMap<String, Integer>> index;
-    static ConcurrentHashMap<String, Connection> connections;
+    static ConcurrentHashMap<String, Connection> clientConnections;
+    static ConcurrentHashMap<String, Connection> dstoreConnections;
 
     public static void main(String[] args){
         System.out.println("changed");
@@ -19,7 +20,8 @@ public class Controller {
         timeout = Integer.parseInt(args[2]);
         rebalancePeriod = Integer.parseInt(args[3]);
 
-        connections = new ConcurrentHashMap<>();
+        clientConnections = new ConcurrentHashMap<>();
+        dstoreConnections = new ConcurrentHashMap<>();
         index = new ConcurrentHashMap<>();
 
         for(int i = 0; i < R; i++){
@@ -37,15 +39,27 @@ public class Controller {
                 Socket client = ss.accept();
                 System.out.println("connected");
 
-                Connection clientConnection = new Connection(client);
-                connections.put("client", clientConnection);
+                Connection connection  = new Connection(client);
+                String identifier = connection.readLine();
 
-                byte[] bytes = new byte[1000]; int bytelen;
-                bytelen = clientConnection.readBytes(bytes);
+                if(identifier.equals("client")) {
+                    int numberOfConnections = clientConnections.size() + 1;
+                    String clientID = "client " + numberOfConnections;
+                    clientConnections.put(clientID, connection);
 
-                ArrayList<String> clientArgs = getArguments(bytes, bytelen);
+                    System.out.println("Client ID: " + clientID);
 
-                handleCommand(clientArgs);
+                    //byte[] bytes = new byte[1000]; int bytelen;
+                    String input = connection.readLine();
+
+                    ArrayList<String> clientArgs = getClientArguments(input);
+
+                    handleCommand(clientArgs, clientID);
+
+                } else if (identifier.startsWith("dstore")){
+                    dstoreConnections.put(identifier, connection);
+                    index.put(identifier, new ConcurrentHashMap<>());
+                }
             }
         } catch (Exception e){
             e.printStackTrace();
@@ -56,7 +70,7 @@ public class Controller {
      * Method to perform client commands
      * @param clientArgs
      */
-    public static void handleCommand(ArrayList<String> clientArgs){
+    public static void handleCommand(ArrayList<String> clientArgs, String clientID){
         String command = clientArgs.get(0);
 
         if(command.equals("STORE")){
@@ -64,7 +78,7 @@ public class Controller {
                 String filename = clientArgs.get(1);
                 int filesize = Integer.parseInt(clientArgs.get(2));
 
-                updateIndex(filename, filesize);
+                updateIndex(filename, filesize, clientID);
             } catch (Exception e){
                 e.printStackTrace();
             }
@@ -74,44 +88,43 @@ public class Controller {
     /**
      * Method to extract arguments from bytes of client's
      * input stream
-     * @param bytes
+     * @param input
      * @return argumentList
      */
-    public static ArrayList<String> getArguments(byte[] bytes, int bytelen){
+    public static ArrayList<String> getClientArguments(String input){
         ArrayList<String> argumentList = new ArrayList<>();
-        String firstBuffer = new String(bytes,0, bytelen);
-        int firstSpace = firstBuffer.indexOf(" ");
-        String command = firstBuffer.substring(0, firstSpace);
+        int firstSpace = input.indexOf(" ");
+        String command = input.substring(0, firstSpace);
         argumentList.add(command);
 
-        int secondSpace = firstBuffer.indexOf(" ", firstSpace + 1);
-        String fileName = firstBuffer.substring(firstSpace + 1, secondSpace);
+        int secondSpace = input.indexOf(" ", firstSpace + 1);
+        String fileName = input.substring(firstSpace + 1, secondSpace);
         System.out.println("fileName: " + fileName);
         argumentList.add(fileName);
 
-        int end = firstBuffer.length();
-        String fileSize = firstBuffer.substring(secondSpace + 1, end);
+        int end = input.length();
+        String fileSize = input.substring(secondSpace + 1, end);
         System.out.println("fileSize: " + fileSize);
         argumentList.add(fileSize);
 
         return argumentList;
     }
 
-    public static void updateIndex(String filename, int filesize){
+    public static void updateIndex(String filename, int filesize, String clientID){
         System.out.println("store in progress");
 
         Iterator<String> it = index.keySet().iterator();
         StringBuilder portString = new StringBuilder();
 
-        portString.append("STORE_TO ");
+        portString.append("STORE_TO");
 
         for(int i = 0; i < R; i++){
-            portString.append(it.next() + " ");
+            portString.append(" " + it.next());
         }
 
         portString.append("\n");
 
-        connections.get("client").write(portString.toString());
+        clientConnections.get(clientID).write(portString.toString());
 
         System.out.println("R ports: " + portString);
     }
