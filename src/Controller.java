@@ -24,18 +24,18 @@ public class Controller {
         dstoreConnections = new ConcurrentHashMap<>();
         index = new ConcurrentHashMap<>();
 
+        /*
         for(int i = 0; i < R; i++){
             ConcurrentHashMap<String, Integer> file = new ConcurrentHashMap<>();
             file.put("filename", 3);
             index.put(Integer.toString(i), file);
-        }
+        } */
 
         try{
             ServerSocket ss = new ServerSocket(cport);
 
             for(;;){
                 System.out.println("Waiting for connection");
-                System.out.println(cport + " " + R + " " + timeout + " " + rebalancePeriod);
                 Socket client = ss.accept();
                 System.out.println("connected");
 
@@ -78,7 +78,39 @@ public class Controller {
                 String filename = clientArgs.get(1);
                 int filesize = Integer.parseInt(clientArgs.get(2));
 
-                updateIndex(filename, filesize, clientID);
+                Iterator<String> it = index.keySet().iterator();
+                StringBuilder portString = new StringBuilder();
+
+                portString.append("STORE_TO");
+
+                String[] Rdstores = new String[R];
+
+                for(int i = 0; i < R; i++){
+                    String dstoreI = it.next();
+                    String[] string = dstoreI.split(" ");
+                    String port = string[1];
+                    updateIndex(filename, filesize, port);
+                    Rdstores[i] = dstoreI;
+                    portString.append(" " + port);
+                }
+
+                portString.append("\n");
+
+                clientConnections.get(clientID).write(portString.toString());
+
+                System.out.println("R ports: " + portString);
+
+                int ackCount = 0;
+                for(String d : Rdstores){
+                    if(dstoreConnections.get(d).readLine().equals("STORE_ACK " + filename)){
+                        ackCount++;
+                    }
+                }
+
+                if(ackCount == R){
+                    clientConnections.get(clientID).write("STORE_COMPLETE");
+                }
+
             } catch (Exception e){
                 e.printStackTrace();
             }
@@ -110,22 +142,10 @@ public class Controller {
         return argumentList;
     }
 
-    public static void updateIndex(String filename, int filesize, String clientID){
+    public static void updateIndex(String filename, int filesize, String dstorePort){
         System.out.println("store in progress");
 
-        Iterator<String> it = index.keySet().iterator();
-        StringBuilder portString = new StringBuilder();
-
-        portString.append("STORE_TO");
-
-        for(int i = 0; i < R; i++){
-            portString.append(" " + it.next());
-        }
-
-        portString.append("\n");
-
-        clientConnections.get(clientID).write(portString.toString());
-
-        System.out.println("R ports: " + portString);
+        index.put(dstorePort, new ConcurrentHashMap<>());
+        index.get(dstorePort).put(filename, filesize);
     }
 }

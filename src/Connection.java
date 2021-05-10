@@ -23,7 +23,6 @@ public class Connection {
     }
 
     public void write(String message){
-        System.out.println("write entered");
         writer.println(message);
         writer.flush();
     }

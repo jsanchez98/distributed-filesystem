@@ -31,6 +31,10 @@ public class TestClient {
                 dstoreConnection.close();
             }
 
+            String controllerAck = "Controller ACK: " + connection.readLine();
+
+            System.out.println(controllerAck);
+
             connection.close();
 
         } catch (Exception e){
@@ -45,7 +49,7 @@ public class TestClient {
     }
 
     public static String[] getDstorePorts(String response){
-        String ports = response.substring(0, 9);
+        String ports = response.substring(9);
         return ports.split(" ");
     }
 }
