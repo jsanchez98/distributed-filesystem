@@ -13,6 +13,10 @@ public class Controller {
     static ConcurrentHashMap<String, Connection> clientConnections;
     static ConcurrentHashMap<String, Connection> dstoreConnections;
 
+    /**
+     * TODO: refactor initialisation of client and dstore connections
+     * @param args
+     */
     public static void main(String[] args){
         System.out.println("changed");
         cport = Integer.parseInt(args[0]);
@@ -52,7 +56,7 @@ public class Controller {
                     //byte[] bytes = new byte[1000]; int bytelen;
                     String input = connection.readLine();
 
-                    ArrayList<String> clientArgs = getClientArguments(input);
+                    String[] clientArgs = getClientArguments(input);
 
                     handleCommand(clientArgs, clientID);
 
@@ -70,51 +74,81 @@ public class Controller {
      * Method to perform client commands
      * @param clientArgs
      */
-    public static void handleCommand(ArrayList<String> clientArgs, String clientID){
-        String command = clientArgs.get(0);
+    public static void handleCommand(String[] clientArgs, String clientID){
+        String command = clientArgs[0];
 
         if(command.equals("STORE")){
             try {
-                String filename = clientArgs.get(1);
-                int filesize = Integer.parseInt(clientArgs.get(2));
+                String filename = clientArgs[1];
+                int filesize = Integer.parseInt(clientArgs[2]);
 
-                Iterator<String> it = index.keySet().iterator();
-                StringBuilder portString = new StringBuilder();
-
-                portString.append("STORE_TO");
-
-                String[] Rdstores = new String[R];
-
-                for(int i = 0; i < R; i++){
-                    String dstoreI = it.next();
-                    String[] string = dstoreI.split(" ");
-                    String port = string[1];
-                    updateIndex(filename, filesize, port);
-                    Rdstores[i] = dstoreI;
-                    portString.append(" " + port);
-                }
-
-                portString.append("\n");
-
-                clientConnections.get(clientID).write(portString.toString());
-
-                System.out.println("R ports: " + portString);
-
-                int ackCount = 0;
-                for(String d : Rdstores){
-                    if(dstoreConnections.get(d).readLine().equals("STORE_ACK " + filename)){
-                        ackCount++;
-                    }
-                }
-
-                if(ackCount == R){
-                    clientConnections.get(clientID).write("STORE_COMPLETE");
-                }
-
+                storeOperation(clientID, filename, filesize);
             } catch (Exception e){
                 e.printStackTrace();
             }
         }
+    }
+
+    /**
+     * Method to choose R Dstores, update their index entries
+     * with the new file, and write them to the client.
+     * Sends "STORE_COMPLETE" to client if successful.
+     * @param clientID client
+     * @param filename filename
+     * @param filesize filesize
+     * @throws IOException for connection I/O
+     */
+    public static void storeOperation(String clientID, String filename, int filesize)
+            throws IOException {
+
+        Iterator<String> it = index.keySet().iterator();
+        StringBuilder portString = new StringBuilder();
+
+        portString.append("STORE_TO");
+
+        String[] Rdstores = new String[R];
+
+        for(int i = 0; i < R; i++){
+            String dstoreI = it.next();
+            String[] string = dstoreI.split(" ");
+            String port = string[1];
+            updateIndex(filename, filesize, port);
+            Rdstores[i] = dstoreI;
+            portString.append(" " + port);
+        }
+
+        portString.append("\n");
+
+        clientConnections.get(clientID).write(portString.toString());
+
+        System.out.println("R ports: " + portString);
+
+        if(checkAllDstoreAcks(Rdstores, filename)){
+            clientConnections.get(clientID).write("STORE_COMPLETE");
+        }
+    }
+
+    /**
+     * Checks that all connected Dstores that were selected by
+     * the storeOperation method have responded with "STORE_ACK {filename}"
+     * @param Rdstores
+     * @param filename
+     * @return
+     * @throws IOException
+     */
+    public static boolean checkAllDstoreAcks(String[] Rdstores, String filename)
+            throws IOException{
+
+        int ackCount = 0;
+
+        for(String dstorePort : Rdstores){
+            Connection dstoreConnection = dstoreConnections.get(dstorePort);
+            if(dstoreConnection.readLine().equals("STORE_ACK " + filename)){
+                ackCount++;
+            }
+        }
+
+        return ackCount == R;
     }
 
     /**
@@ -123,22 +157,8 @@ public class Controller {
      * @param input
      * @return argumentList
      */
-    public static ArrayList<String> getClientArguments(String input){
-        ArrayList<String> argumentList = new ArrayList<>();
-        int firstSpace = input.indexOf(" ");
-        String command = input.substring(0, firstSpace);
-        argumentList.add(command);
-
-        int secondSpace = input.indexOf(" ", firstSpace + 1);
-        String fileName = input.substring(firstSpace + 1, secondSpace);
-        System.out.println("fileName: " + fileName);
-        argumentList.add(fileName);
-
-        int end = input.length();
-        String fileSize = input.substring(secondSpace + 1, end);
-        System.out.println("fileSize: " + fileSize);
-        argumentList.add(fileSize);
-
+    public static String[] getClientArguments(String input){
+        String[] argumentList = input.split(" ");
         return argumentList;
     }
 

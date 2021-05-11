@@ -1,3 +1,5 @@
+import java.io.File;
+import java.io.FileOutputStream;
 import java.net.*;
 
 public class Dstore {
@@ -36,10 +38,14 @@ public class Dstore {
                     String[] storeArguments = commandString.split(" ");
                     String fileName = storeArguments[1];
                     int fileSize = Integer.parseInt(storeArguments[2]);
+
                     clientConnection.write("ACK");
+
                     byte[] fileContents = new byte[fileSize];
                     clientConnection.readBytes(fileContents);
-                    storeToFile(fileContents, fileName, Integer.parseInt(storeArguments[2]));
+
+                    storeToFile(fileContents, fileName);
+
                     controllerConnection.write("STORE_ACK " + fileName);
                 }
 
@@ -54,7 +60,17 @@ public class Dstore {
         return port;
     }
 
-    public void storeToFile(byte[] contents, String fileName, int fileSize){
+    public void storeToFile(byte[] contents, String fileName){
+        try {
+            File file = new File(fileName);
 
+            file.createNewFile();
+
+            FileOutputStream fos = new FileOutputStream(file);
+            fos.write(contents);
+            fos.flush();
+        } catch (Exception e){
+            e.printStackTrace();
+        }
     }
 }

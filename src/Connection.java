@@ -29,6 +29,7 @@ public class Connection {
 
     public void writeBytes(byte[] bytes) throws IOException {
         out.write(bytes);
+        out.flush();
     }
 
     public String readLine() throws IOException {
