@@ -9,7 +9,7 @@ public class Controller {
     static int R;
     static int timeout;
     static int rebalancePeriod;
-    static ConcurrentHashMap<String, ConcurrentHashMap<String, Integer>> index;
+    static ConcurrentHashMap<String, FileIndex> index;
     static ConcurrentHashMap<String, Connection> clientConnections;
     static ConcurrentHashMap<String, Connection> dstoreConnections;
 
@@ -46,6 +46,11 @@ public class Controller {
                 Connection connection  = new Connection(client);
                 String identifier = connection.readLine();
 
+                if(!checkEnoughDstores()){
+                    connection.write("ERROR_NOT_ENOUGH_DSTORES");
+                    continue;
+                }
+
                 if(identifier.equals("client")) {
                     int numberOfConnections = clientConnections.size() + 1;
                     String clientID = "client " + numberOfConnections;
@@ -62,7 +67,7 @@ public class Controller {
 
                 } else if (identifier.startsWith("dstore")){
                     dstoreConnections.put(identifier, connection);
-                    index.put(identifier, new ConcurrentHashMap<>());
+                    index.put(identifier, new FileIndex());
                 }
             }
         } catch (Exception e){
@@ -100,6 +105,10 @@ public class Controller {
      */
     public static void storeOperation(String clientID, String filename, int filesize)
             throws IOException {
+
+        if(checkFileExists(filename)){
+            return;
+        }
 
         Iterator<String> it = index.keySet().iterator();
         StringBuilder portString = new StringBuilder();
@@ -151,6 +160,28 @@ public class Controller {
         return ackCount == R;
     }
 
+    public static boolean checkEnoughDstores(){
+        ConcurrentHashMap.KeySetView<String, Connection> set =
+                dstoreConnections.keySet();
+        return set.size() >= R;
+    }
+
+    /**
+     * looks through all the files in the inner file index hashmap
+     *to see if any has the same name as the file to be added
+     * @param filename filename
+     * @return boolean true if filename found, false otherwise
+     */
+    public static boolean checkFileExists(String filename){
+        for(String dstore : index.keySet()){
+            ConcurrentHashMap<String, Integer> files = index.get(dstore).getFiles();
+            if(files.containsKey(filename)){
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Method to extract arguments from bytes of client's
      * input stream
@@ -164,8 +195,10 @@ public class Controller {
 
     public static void updateIndex(String filename, int filesize, String dstorePort){
         System.out.println("store in progress");
-
-        index.put(dstorePort, new ConcurrentHashMap<>());
-        index.get(dstorePort).put(filename, filesize);
+        if(index.containsKey(dstorePort)) {
+            index.put(dstorePort, new FileIndex());
+        } else {
+            index.get(dstorePort).add(filename, filesize);
+        }
     }
 }
