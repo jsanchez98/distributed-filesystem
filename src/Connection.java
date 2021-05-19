@@ -46,6 +46,10 @@ public class Connection {
         return in.read(bytes);
     }
 
+    public Socket getSocket(){
+        return socket;
+    }
+
     public void close() throws IOException {
         out.close();
         in.close();

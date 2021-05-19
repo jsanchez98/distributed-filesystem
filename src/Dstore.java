@@ -60,9 +60,13 @@ public class Dstore {
         return port;
     }
 
-    public void storeToFile(byte[] contents, String fileName){
+    public void storeToFile(byte[] contents, String folderName){
         try {
-            File file = new File(fileName);
+            System.out.println(System.getProperty("user.dir"));
+            File file = new File(System.getProperty("user.dir") + "/" + "Dstore" + port + "/" + folderName);
+            System.out.println(file.getAbsolutePath());
+
+            file.getParentFile().mkdirs();
 
             file.createNewFile();
 

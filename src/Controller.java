@@ -1,24 +1,20 @@
 import java.io.*;
 import java.net.*;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.concurrent.*;
 
 public class Controller {
-    static int cport;
-    static int R;
-    static int timeout;
-    static int rebalancePeriod;
-    static ConcurrentHashMap<String, FileIndex> index;
-    static ConcurrentHashMap<String, Connection> clientConnections;
-    static ConcurrentHashMap<String, Connection> dstoreConnections;
+    int cport;
+    int R;
+    int timeout;
+    int rebalancePeriod;
 
-    /**
-     * TODO: refactor initialisation of client and dstore connections
-     * @param args
-     */
-    public static void main(String[] args){
-        System.out.println("changed");
+    ConcurrentHashMap<String, FileIndex> index;
+    ConcurrentHashMap<String, Connection> clientConnections;
+    ConcurrentHashMap<String, Connection> dstoreConnections;
+
+
+    private Controller(String[] args){
         cport = Integer.parseInt(args[0]);
         R = Integer.parseInt(args[1]);
         timeout = Integer.parseInt(args[2]);
@@ -27,67 +23,44 @@ public class Controller {
         clientConnections = new ConcurrentHashMap<>();
         dstoreConnections = new ConcurrentHashMap<>();
         index = new ConcurrentHashMap<>();
+    }
 
-        /*
-        for(int i = 0; i < R; i++){
-            ConcurrentHashMap<String, Integer> file = new ConcurrentHashMap<>();
-            file.put("filename", 3);
-            index.put(Integer.toString(i), file);
-        } */
+    public ConcurrentHashMap<String, FileIndex> getIndex() {
+        return index;
+    }
 
-        try{
-            ServerSocket ss = new ServerSocket(cport);
+    public ConcurrentHashMap<String, Connection> getDstoreConnections() {
+        return dstoreConnections;
+    }
 
-            for(;;){
-                System.out.println("Waiting for connection");
-                Socket client = ss.accept();
-                System.out.println("connected");
-
-                Connection connection  = new Connection(client);
-                String identifier = connection.readLine();
-
-                if(!checkEnoughDstores()){
-                    connection.write("ERROR_NOT_ENOUGH_DSTORES");
-                    continue;
-                }
-
-                if(identifier.equals("client")) {
-                    int numberOfConnections = clientConnections.size() + 1;
-                    String clientID = "client " + numberOfConnections;
-                    clientConnections.put(clientID, connection);
-
-                    System.out.println("Client ID: " + clientID);
-
-                    //byte[] bytes = new byte[1000]; int bytelen;
-                    String input = connection.readLine();
-
-                    String[] clientArgs = getClientArguments(input);
-
-                    handleCommand(clientArgs, clientID);
-
-                } else if (identifier.startsWith("dstore")){
-                    dstoreConnections.put(identifier, connection);
-                    index.put(identifier, new FileIndex());
-                }
-            }
-        } catch (Exception e){
-            e.printStackTrace();
-        }
+    public ConcurrentHashMap<String, Connection> getClientConnections() {
+        return clientConnections;
     }
 
     /**
-     * Method to perform client commands
-     * @param clientArgs
+     * TODO: refactor initialisation of client and dstore connections
+     * @param args
      */
-    public static void handleCommand(String[] clientArgs, String clientID){
-        String command = clientArgs[0];
+    public static void main(String[] args){
 
-        if(command.equals("STORE")){
+        Controller controller = new Controller(args);
+        controller.start();
+    }
+
+    public void start(){
+        ServerSocket ss = null;
+        try { ss = new ServerSocket(cport);}
+        catch (Exception e) { e.printStackTrace();}
+
+        for(;;){
             try {
-                String filename = clientArgs[1];
-                int filesize = Integer.parseInt(clientArgs[2]);
+                System.out.println("Waiting for connection");
+                Socket incoming = ss.accept();
 
-                storeOperation(clientID, filename, filesize);
+                ConnectionHandler connectionHandler = new ConnectionHandler(incoming, this);
+
+                new Thread(connectionHandler).start();
+
             } catch (Exception e){
                 e.printStackTrace();
             }
@@ -103,14 +76,15 @@ public class Controller {
      * @param filesize filesize
      * @throws IOException for connection I/O
      */
-    public static void storeOperation(String clientID, String filename, int filesize)
+    public void storeOperation(String clientID, String filename, int filesize)
             throws IOException {
 
         if(checkFileExists(filename)){
+            clientConnections.get(clientID).write("ERROR_FILE_ALREADY_EXISTS");
             return;
         }
 
-        Iterator<String> it = index.keySet().iterator();
+        Iterator<String> it = dstoreConnections.keySet().iterator();
         StringBuilder portString = new StringBuilder();
 
         portString.append("STORE_TO");
@@ -121,7 +95,9 @@ public class Controller {
             String dstoreI = it.next();
             String[] string = dstoreI.split(" ");
             String port = string[1];
+            System.out.println("selected port: " + port);
             updateIndex(filename, filesize, port);
+
             Rdstores[i] = dstoreI;
             portString.append(" " + port);
         }
@@ -132,27 +108,27 @@ public class Controller {
 
         System.out.println("R ports: " + portString);
 
-        if(checkAllDstoreAcks(Rdstores, filename)){
-            clientConnections.get(clientID).write("STORE_COMPLETE");
-        }
+        while(!checkAllDstoreAcks(Rdstores, filename)){}
+
+        clientConnections.get(clientID).write("STORE_COMPLETE");
     }
 
     /**
      * Checks that all connected Dstores that were selected by
      * the storeOperation method have responded with "STORE_ACK {filename}"
-     * @param Rdstores
-     * @param filename
-     * @return
+     * @param Rdstores array of selected dstore identifier strings
+     * @param filename filename
+     * @return true, if controller receives all dstore acks. false, otherwise
      * @throws IOException
      */
-    public static boolean checkAllDstoreAcks(String[] Rdstores, String filename)
+    public boolean checkAllDstoreAcks(String[] Rdstores, String filename)
             throws IOException{
 
         int ackCount = 0;
 
         for(String dstorePort : Rdstores){
-            Connection dstoreConnection = dstoreConnections.get(dstorePort);
-            if(dstoreConnection.readLine().equals("STORE_ACK " + filename)){
+            FileData fileData = index.get(dstorePort).getFileData(filename);
+            if(fileData.getNumberOfAcks() == 1){
                 ackCount++;
             }
         }
@@ -160,9 +136,34 @@ public class Controller {
         return ackCount == R;
     }
 
-    public static boolean checkEnoughDstores(){
+    public void checkConnections() throws IOException {
+        ConcurrentHashMap.KeySetView<String, Connection> dstoreSet =
+                dstoreConnections.keySet();
+        ConcurrentHashMap.KeySetView<String, Connection> clientSet =
+                clientConnections.keySet();
+
+        for(String s : dstoreSet){
+            if(dstoreConnections.get(s).readLine() == null){
+                dstoreConnections.remove(s);
+                System.out.println(s + " disconnected");
+            }
+        }
+
+        for(String s : clientSet){
+            try{
+                clientConnections.get(s).write("");
+            } catch (Exception e){
+                clientConnections.remove(s);
+            }
+        }
+    }
+
+    public boolean checkEnoughDstores(){
         ConcurrentHashMap.KeySetView<String, Connection> set =
                 dstoreConnections.keySet();
+        System.out.println("set: " + set.size());
+        System.out.println("dc: " + dstoreConnections.size());
+        System.out.println("R: " + R);
         return set.size() >= R;
     }
 
@@ -172,9 +173,9 @@ public class Controller {
      * @param filename filename
      * @return boolean true if filename found, false otherwise
      */
-    public static boolean checkFileExists(String filename){
+    public boolean checkFileExists(String filename){
         for(String dstore : index.keySet()){
-            ConcurrentHashMap<String, Integer> files = index.get(dstore).getFiles();
+            ConcurrentHashMap<String, FileData> files = index.get(dstore).getFiles();
             if(files.containsKey(filename)){
                 return true;
             }
@@ -182,23 +183,13 @@ public class Controller {
         return false;
     }
 
-    /**
-     * Method to extract arguments from bytes of client's
-     * input stream
-     * @param input
-     * @return argumentList
-     */
-    public static String[] getClientArguments(String input){
-        String[] argumentList = input.split(" ");
-        return argumentList;
-    }
-
-    public static void updateIndex(String filename, int filesize, String dstorePort){
+    public void updateIndex(String filename, int filesize, String dstorePort){
         System.out.println("store in progress");
-        if(index.containsKey(dstorePort)) {
+        if(index.containsKey("dstore " + dstorePort)) {
             index.put(dstorePort, new FileIndex());
-        } else {
-            index.get(dstorePort).add(filename, filesize);
+
+            FileData fileData = new FileData(filesize);
+            index.get("dstore " + dstorePort).addFile(filename, fileData);
         }
     }
 }

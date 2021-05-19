@@ -19,7 +19,7 @@ public class TestClient {
             String response = reader.readLine();
             System.out.println("Response: " + response);
 
-            File file = new File("test.txt");
+            File file = new File(filename);
             InputStream in = new FileInputStream(file);
             byte[] fileContent = in.readAllBytes();
 
