@@ -1,5 +1,4 @@
-import java.io.File;
-import java.io.FileOutputStream;
+import java.io.*;
 import java.net.*;
 
 public class Dstore {
@@ -25,13 +24,14 @@ public class Dstore {
             InetAddress localhost = InetAddress.getLocalHost();
             Socket socket = new Socket(localhost, 4323);
             Connection controllerConnection = new Connection(socket);
-            controllerConnection.write("dstore " + Integer.toString(port));
+            controllerConnection.write("dstore " + port);
+
+            ServerSocket ss = new ServerSocket(port);
+            Socket clientSocket = ss.accept();
+
+            Connection clientConnection = new Connection(clientSocket);
 
             for(;;){
-                ServerSocket ss = new ServerSocket(port);
-                Socket clientSocket = ss.accept();
-
-                Connection clientConnection = new Connection(clientSocket);
                 String commandString = clientConnection.readLine();
 
                 if (commandString.startsWith("STORE")){
@@ -47,8 +47,14 @@ public class Dstore {
                     storeToFile(fileContents, fileName);
 
                     controllerConnection.write("STORE_ACK " + fileName);
+                } else if (commandString.startsWith("LOAD_DATA")){
+                    String[] loadArguments = commandString.split(" ");
+                    String fileName = loadArguments[1];
+
+                    loadFile(fileName, clientConnection);
                 }
 
+                clientConnection.close();
                 ss.close();
             }
         } catch (Exception e){
@@ -76,5 +82,17 @@ public class Dstore {
         } catch (Exception e){
             e.printStackTrace();
         }
+    }
+
+    public void loadFile(String filename, Connection connection){
+        try {
+            File requestedFile = new File(filename);
+            InputStream in = new FileInputStream(requestedFile);
+            byte[] fileContent = in.readAllBytes();
+
+            connection.writeBytes(fileContent);
+        } catch (Exception e){ e.printStackTrace(); }
+
+
     }
 }
