@@ -24,6 +24,7 @@ public class TestClientStore {
             byte[] fileContent = in.readAllBytes();
 
             for(String d : getDstorePorts(response)){
+                System.out.println("connecting to dstores");
                 Socket dsocket = new Socket(localhost, Integer.parseInt(d));
                 Connection dstoreConnection = new Connection(dsocket);
                 dstoreConnection.write("STORE " + filename + " " + filesize);

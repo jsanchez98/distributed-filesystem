@@ -2,14 +2,11 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class FileIndex {
 
-    private int numberOfAcks;
     ConcurrentHashMap<String, FileData> files;
 
     FileIndex(){
         files = new ConcurrentHashMap<>();
     }
-
-
 
     public void addFile(String filename, FileData filedata){
         files.put(filename, filedata);

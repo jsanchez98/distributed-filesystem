@@ -1,5 +1,6 @@
 import java.io.*;
 import java.net.*;
+import java.util.Arrays;
 
 public class TestClientLoad {
     public static void main(String[] args){
@@ -14,9 +15,10 @@ public class TestClientLoad {
             BufferedReader reader = new BufferedReader(
                     new InputStreamReader(socket.getInputStream()));
 
-            connection.write(args[0] + " " + args[1]);
+            connection.write("LOAD " + args[1]);
 
             String response = reader.readLine();
+            System.out.println(response);
 
             String[] parts = response.split(" ");
             int portNumber = Integer.parseInt(parts[1]);
@@ -29,6 +31,26 @@ public class TestClientLoad {
 
             byte[] fileContent = new byte[fileSize];
             dstoreConnection.readBytes(fileContent);
+
+            for(;;) {
+                if (dstoreConnection.readLine() == null) {
+                    connection.write("RELOAD " + filename);
+                    fileContent = new byte[fileSize];
+
+                    String newResponse = reader.readLine();
+                    System.out.println("newResponse: " + newResponse);
+                    String[] newParts = newResponse.split(" ");
+                    int newPort = Integer.parseInt(newParts[1]);
+                    Socket newDsocket = new Socket(localhost, newPort);
+                    Connection newDstoreConnection = new Connection(newDsocket);
+
+                    System.out.println(filename);
+                    newDstoreConnection.write("LOAD_DATA " + filename);
+                    newDstoreConnection.readBytes(fileContent);
+                } else {
+                    break;
+                }
+            }
 
             File file = new File(filename);
             file.createNewFile();

@@ -1,4 +1,6 @@
+import java.io.IOException;
 import java.net.Socket;
+import java.util.ArrayList;
 
 public class ConnectionHandler implements Runnable{
     Socket socket;
@@ -25,7 +27,9 @@ public class ConnectionHandler implements Runnable{
 
         if (identifier != null && identifier.startsWith("dstore")) {
             mainController.getDstoreConnections().put(identifier, connection);
-            mainController.getIndex().put(identifier, new FileIndex());
+            if(!mainController.getIndex().containsKey(identifier)) {
+                mainController.getIndex().put(identifier, new FileIndex());
+            }
             // above needs to check that dstore doesn't already exist in the index
 
             handleDstore(connection, identifier);
@@ -34,20 +38,21 @@ public class ConnectionHandler implements Runnable{
             int numberOfConnections = mainController.clientConnections.size();
             clientID = "client " + numberOfConnections;
 
-            System.out.println("Client ID: " + clientID);
-
             handleClient(connection, clientID);
         }
 
 
         if(identifier != null && identifier.startsWith("dstore")) {
+            try {
+                mainController.getDstoreConnections().get(identifier).close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
             mainController.getDstoreConnections().remove(identifier);
         }
 
         if(clientID != null && identifier.startsWith("client")){
-            System.out.println("remover entered");
             mainController.getClientConnections().remove(clientID);
-            System.out.println(mainController.getClientConnections().toString());
         }
     }
 
@@ -78,6 +83,7 @@ public class ConnectionHandler implements Runnable{
     private void handleClient(Connection connection, String clientID){
 
         String message = null;
+        ArrayList<String> dstores = new ArrayList<>();
 
         try {
             message = connection.readLine();
@@ -102,6 +108,21 @@ public class ConnectionHandler implements Runnable{
 
                     mainController.storeOperation(clientID, filename, filesize);
                 } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
+            if (message.startsWith("LOAD") || message.startsWith("RELOAD")) {
+                try{
+                    String[] parts = message.split(" ");
+                    String filename = parts[1];
+
+                    try {
+                        dstores = mainController.loadOperation(clientID, filename, dstores);
+                    } catch (FileDoesNotExistException e){
+                        connection.write(e.getMessage());
+                    }
+                } catch (Exception e){
                     e.printStackTrace();
                 }
             }

@@ -1,5 +1,7 @@
 import java.io.*;
 import java.net.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class Dstore {
     int port;
@@ -32,9 +34,16 @@ public class Dstore {
             Connection clientConnection = new Connection(clientSocket);
 
             for(;;){
-                String commandString = clientConnection.readLine();
+
+                String commandString;
+                try {
+                    commandString = clientConnection.readLine();
+                } catch (Exception e){
+                    continue;
+                }
 
                 if (commandString.startsWith("STORE")){
+                    System.out.println("store entered");
                     String[] storeArguments = commandString.split(" ");
                     String fileName = storeArguments[1];
                     int fileSize = Integer.parseInt(storeArguments[2]);
@@ -69,7 +78,7 @@ public class Dstore {
     public void storeToFile(byte[] contents, String folderName){
         try {
             System.out.println(System.getProperty("user.dir"));
-            File file = new File(System.getProperty("user.dir") + "/" + "Dstore" + port + "/" + folderName);
+            File file = new File(System.getProperty("user.dir") + "/" + file_folder + "/" + folderName);
             System.out.println(file.getAbsolutePath());
 
             file.getParentFile().mkdirs();
@@ -84,15 +93,13 @@ public class Dstore {
         }
     }
 
-    public void loadFile(String filename, Connection connection){
+    public void loadFile(String filename, Connection connection) throws IOException {
         try {
-            File requestedFile = new File(filename);
-            InputStream in = new FileInputStream(requestedFile);
-            byte[] fileContent = in.readAllBytes();
+            byte[] fileContent = Files.readAllBytes(Path.of(file_folder + "/" + filename));
 
             connection.writeBytes(fileContent);
-        } catch (Exception e){ e.printStackTrace(); }
-
-
+        } catch (Exception e){
+            e.printStackTrace();
+        }
     }
 }

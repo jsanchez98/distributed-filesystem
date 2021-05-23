@@ -1,6 +1,6 @@
 import java.io.*;
 import java.net.*;
-import java.util.Iterator;
+import java.util.*;
 import java.util.concurrent.*;
 
 public class Controller {
@@ -72,45 +72,92 @@ public class Controller {
      * with the new file, and write them to the client.
      * Sends "STORE_COMPLETE" to client if successful.
      * @param clientID client
-     * @param filename filename
+     * @param fileName filename
      * @param filesize filesize
      * @throws IOException for connection I/O
      */
-    public void storeOperation(String clientID, String filename, int filesize)
+    public void storeOperation(String clientID, String fileName, int filesize)
             throws IOException {
 
-        if(checkFileExists(filename)){
+        if(checkFileExists(fileName)){
             clientConnections.get(clientID).write("ERROR_FILE_ALREADY_EXISTS");
             return;
         }
 
-        Iterator<String> it = dstoreConnections.keySet().iterator();
-        StringBuilder portString = new StringBuilder();
+        String[] Rdstores = selectRdstores();
 
+        StringBuilder portString = new StringBuilder();
         portString.append("STORE_TO");
 
-        String[] Rdstores = new String[R];
-
-        for(int i = 0; i < R; i++){
-            String dstoreI = it.next();
-            String[] string = dstoreI.split(" ");
+        for(String dstore : Rdstores){
+            String[] string = dstore.split(" ");
             String port = string[1];
-            System.out.println("selected port: " + port);
-            updateIndex(filename, filesize, port);
-
-            Rdstores[i] = dstoreI;
             portString.append(" " + port);
+            updateIndex(fileName, filesize, dstore);
         }
 
         portString.append("\n");
 
         clientConnections.get(clientID).write(portString.toString());
 
-        System.out.println("R ports: " + portString);
-
-        while(!checkAllDstoreAcks(Rdstores, filename)){}
+        while(!checkAllDstoreAcks(Rdstores, fileName)){}
 
         clientConnections.get(clientID).write("STORE_COMPLETE");
+    }
+
+    public ArrayList<String> loadOperation(String clientID, String fileName, ArrayList<String> dstores) throws FileDoesNotExistException{
+        String dstore = findDstore(fileName, dstores);
+
+        String[] dstoreParts;
+        String dstorePort = null;
+        try {
+            dstoreParts = dstore.split(" ");
+            dstorePort = dstoreParts[1];
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+
+        FileData fileData = index.get("dstore " + dstorePort).getFileData(fileName);
+        int length = fileData.getLength();
+
+        if(!dstore.equals(" ")){
+            clientConnections.get(clientID).write("LOAD_FROM " + dstorePort + " " + length);
+            dstores.add(dstore);
+            return dstores;
+        }
+
+        return dstores;
+    }
+
+    public String findDstore(String fileName, ArrayList<String> excluded) throws FileDoesNotExistException {
+        String[] keys = new String[]{};
+        keys = index.keySet().toArray(keys);
+        Set<String> indexDstores = new HashSet<>(Arrays.asList(keys));
+        Set<String> differenceSet = new HashSet<>(indexDstores);
+        differenceSet.removeAll(new HashSet<>(excluded));
+        System.out.println("difference set" + differenceSet);
+
+        for(String dstore : differenceSet){
+            ConcurrentHashMap<String, FileData> files = index.get(dstore).getFiles();
+            if(files.containsKey(fileName)){
+                return dstore;
+            }
+        }
+
+        throw new FileDoesNotExistException("ERROR_FILE_DOES_NOT_EXIST");
+    }
+
+    public String[] selectRdstores(){
+        Iterator<String> it = dstoreConnections.keySet().iterator();
+
+        String[] Rdstores = new String[R];
+
+        for(int i = 0; i < R; i++){
+            String dstoreI = it.next();
+            Rdstores[i] = dstoreI;
+        }
+
+        return Rdstores;
     }
 
     /**
@@ -161,9 +208,6 @@ public class Controller {
     public boolean checkEnoughDstores(){
         ConcurrentHashMap.KeySetView<String, Connection> set =
                 dstoreConnections.keySet();
-        System.out.println("set: " + set.size());
-        System.out.println("dc: " + dstoreConnections.size());
-        System.out.println("R: " + R);
         return set.size() >= R;
     }
 
@@ -183,13 +227,15 @@ public class Controller {
         return false;
     }
 
-    public void updateIndex(String filename, int filesize, String dstorePort){
+    public void updateIndex(String filename, int filesize, String dstore){
         System.out.println("store in progress");
-        if(index.containsKey("dstore " + dstorePort)) {
-            index.put(dstorePort, new FileIndex());
+        index.get(dstore).addFile(filename, new FileData(filesize));
+        System.out.println(index.get(dstore).getFiles());
+    }
+}
 
-            FileData fileData = new FileData(filesize);
-            index.get("dstore " + dstorePort).addFile(filename, fileData);
-        }
+class FileDoesNotExistException extends Exception {
+    public FileDoesNotExistException(String message){
+        super(message);
     }
 }
