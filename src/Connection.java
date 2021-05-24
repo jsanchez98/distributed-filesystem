@@ -7,6 +7,7 @@ public class Connection {
     public BufferedReader reader;
     public PrintWriter writer;
     public Socket socket;
+    boolean isOpen;
 
     Connection(Socket socket){
         try {
@@ -17,6 +18,7 @@ public class Connection {
                                 new InputStreamReader(in));
             this.writer = new PrintWriter(
                                 new OutputStreamWriter(out));
+            isOpen = true;
         } catch (Exception e){
             e.printStackTrace();
         }

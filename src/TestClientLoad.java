@@ -8,6 +8,7 @@ public class TestClientLoad {
             InetAddress localhost = InetAddress.getLocalHost();
             Socket socket = new Socket(localhost, 4323);
             Connection connection = new Connection(socket);
+
             connection.write("client");
 
             String filename = args[1];
@@ -26,17 +27,19 @@ public class TestClientLoad {
 
             Socket dsocket = new Socket(localhost, portNumber);
             Connection dstoreConnection = new Connection(dsocket);
+            ConnectionPoller poller = new ConnectionPoller(dstoreConnection);
+            //new Thread(poller).start();
 
             dstoreConnection.write("LOAD_DATA " + filename);
 
             byte[] fileContent = new byte[fileSize];
-            dstoreConnection.readBytes(fileContent);
 
-            for(;;) {
-                if (dstoreConnection.readLine() == null) {
+            for(;;){
+                if(dstoreConnection.readBytes(fileContent) == -1) {
+                    dsocket.close();
+
                     connection.write("RELOAD " + filename);
                     fileContent = new byte[fileSize];
-
                     String newResponse = reader.readLine();
                     System.out.println("newResponse: " + newResponse);
                     String[] newParts = newResponse.split(" ");
@@ -44,13 +47,13 @@ public class TestClientLoad {
                     Socket newDsocket = new Socket(localhost, newPort);
                     Connection newDstoreConnection = new Connection(newDsocket);
 
-                    System.out.println(filename);
+                    dstoreConnection = newDstoreConnection;
                     newDstoreConnection.write("LOAD_DATA " + filename);
-                    newDstoreConnection.readBytes(fileContent);
                 } else {
                     break;
                 }
             }
+
 
             File file = new File(filename);
             file.createNewFile();

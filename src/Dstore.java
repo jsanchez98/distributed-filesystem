@@ -2,6 +2,7 @@ import java.io.*;
 import java.net.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 public class Dstore {
     int port;
@@ -33,15 +34,9 @@ public class Dstore {
 
             Connection clientConnection = new Connection(clientSocket);
 
-            for(;;){
+            String commandString = clientConnection.readLine();
 
-                String commandString;
-                try {
-                    commandString = clientConnection.readLine();
-                } catch (Exception e){
-                    continue;
-                }
-
+            while(commandString != null){
                 if (commandString.startsWith("STORE")){
                     System.out.println("store entered");
                     String[] storeArguments = commandString.split(" ");
@@ -57,15 +52,25 @@ public class Dstore {
 
                     controllerConnection.write("STORE_ACK " + fileName);
                 } else if (commandString.startsWith("LOAD_DATA")){
+                    System.out.println("load entered");
                     String[] loadArguments = commandString.split(" ");
                     String fileName = loadArguments[1];
 
-                    loadFile(fileName, clientConnection);
+                    try {
+                        loadFile(fileName, clientConnection);
+                    } catch (Exception e){
+                        break;
+                    }
                 }
 
-                clientConnection.close();
-                ss.close();
+                try {
+                    commandString = clientConnection.readLine();
+                } catch (Exception e){
+                    break;
+                }
             }
+
+            clientConnection.close();
         } catch (Exception e){
             e.printStackTrace();
         }
@@ -77,9 +82,7 @@ public class Dstore {
 
     public void storeToFile(byte[] contents, String folderName){
         try {
-            System.out.println(System.getProperty("user.dir"));
             File file = new File(System.getProperty("user.dir") + "/" + file_folder + "/" + folderName);
-            System.out.println(file.getAbsolutePath());
 
             file.getParentFile().mkdirs();
 
@@ -95,11 +98,12 @@ public class Dstore {
 
     public void loadFile(String filename, Connection connection) throws IOException {
         try {
-            byte[] fileContent = Files.readAllBytes(Path.of(file_folder + "/" + filename));
-
+            File requestedFile = new File(file_folder + "/" + filename);
+            InputStream in = new FileInputStream(requestedFile);
+            byte[] fileContent = in.readAllBytes();
             connection.writeBytes(fileContent);
         } catch (Exception e){
-            e.printStackTrace();
+            connection.close();
         }
     }
 }
