@@ -100,7 +100,11 @@ public class Controller {
 
         clientConnections.get(clientID).write(portString.toString());
 
-        while(!checkAllDstoreAcks(Rdstores, fileName)){}
+        while(!checkAllDstoreAcks(Rdstores, fileName)){ }
+
+        for(String dstore : Rdstores){
+            index.get(dstore).getFileData(fileName).setFalseStoreAck();
+        }
 
         clientConnections.get(clientID).write("STORE_COMPLETE");
     }
@@ -127,6 +131,17 @@ public class Controller {
         }
 
         return dstores;
+    }
+
+    public void removeOperation(String filename){
+        System.out.println("remove in progress");
+
+        for(String dstore : index.keySet()){
+            ConcurrentHashMap<String, FileData> files = index.get(dstore).getFiles();
+            files.remove(filename);
+            System.out.println(files.toString());
+        }
+
     }
 
     public String findDstore(String fileName, ArrayList<String> excluded) throws FileDoesNotExistException {
@@ -175,7 +190,7 @@ public class Controller {
 
         for(String dstorePort : Rdstores){
             FileData fileData = index.get(dstorePort).getFileData(filename);
-            if(fileData.getNumberOfAcks() == 1){
+            if(fileData.isStoreAck()){
                 ackCount++;
             }
         }

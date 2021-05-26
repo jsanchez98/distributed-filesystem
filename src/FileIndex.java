@@ -23,20 +23,30 @@ public class FileIndex {
 
 class FileData {
     private int length;
-    private int numberOfAcks;
+    private boolean storeAck;
+    private boolean removeAck;
 
     FileData(int length){
         this.length = length;
-        numberOfAcks = 0;
+        storeAck = false;
+        removeAck = false;
     }
 
-    public void incrementAcks(){
-        numberOfAcks++;
+    public boolean isRemoveAck() {
+        return removeAck;
     }
 
-    public int getNumberOfAcks() {
-        return numberOfAcks;
+    public boolean isStoreAck() {
+        return storeAck;
     }
+
+    public void setTrueRemoveAck(){ this.removeAck = true; }
+
+    public void setFalseRemoveAck(){ this.removeAck = false; }
+
+    public void setTrueStoreAck(){ this.storeAck = true; }
+
+    public void setFalseStoreAck(){ this.storeAck = false; }
 
     public int getLength() {
         return length;

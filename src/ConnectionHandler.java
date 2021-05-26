@@ -1,6 +1,7 @@
 import java.io.IOException;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ConnectionHandler implements Runnable{
     Socket socket;
@@ -70,7 +71,15 @@ public class ConnectionHandler implements Runnable{
                 String filename = parts[1];
 
                 FileIndex files = mainController.getIndex().get(identifier);
-                files.getFileData(filename).incrementAcks();
+                files.getFileData(filename).setTrueStoreAck();
+            }
+
+            if(message.startsWith("REMOVE_ACK")){
+                String[] parts = message.split(" ");
+                String filename = parts[1];
+
+                FileIndex files = mainController.getIndex().get(identifier);
+                files.getFileData(filename).setTrueRemoveAck();
             }
         }
     }
@@ -78,15 +87,16 @@ public class ConnectionHandler implements Runnable{
     /**
      * method to handle parsing and interpretation
      * of client's message
-     * @param connection
+     * @param clientConnection
      */
-    private void handleClient(Connection connection, String clientID){
+    private void handleClient(Connection clientConnection, String clientID){
 
         String message = null;
         ArrayList<String> dstores = new ArrayList<>();
 
         try {
-            message = connection.readLine();
+            message = clientConnection.readLine();
+            System.out.println("RECEIVED " + message);
         } catch (Exception e) {
             e.printStackTrace();
             return;
@@ -94,11 +104,11 @@ public class ConnectionHandler implements Runnable{
 
         while(message != null) {
             if (!mainController.checkEnoughDstores()) {
-                connection.write("ERROR_NOT_ENOUGH_DSTORES");
+                clientConnection.write("ERROR_NOT_ENOUGH_DSTORES");
                 return;
             }
 
-            mainController.clientConnections.put(clientID, connection);
+            mainController.clientConnections.put(clientID, clientConnection);
 
             if (message.startsWith("STORE")) {
                 try {
@@ -120,18 +130,79 @@ public class ConnectionHandler implements Runnable{
                     try {
                         dstores = mainController.loadOperation(clientID, filename, dstores);
                     } catch (FileDoesNotExistException e){
-                        connection.write(e.getMessage());
+                        clientConnection.write(e.getMessage());
                     }
                 } catch (Exception e){
                     e.printStackTrace();
                 }
             }
 
+            if(message.startsWith("REMOVE")){
+                try{
+                    String[] parts = message.split(" ");
+                    String filename = parts[1];
+
+                    ConcurrentHashMap<String, FileIndex> index = mainController.getIndex();
+                    int numberOfDstoresWithFile = 0;
+
+                    for(String dstore : index.keySet()){
+                        if(index.get(dstore).files.containsKey(filename)){
+                            numberOfDstoresWithFile++;
+                            Connection dstoreConnection = mainController
+                                    .getDstoreConnections()
+                                    .get(dstore);
+                            dstoreConnection.write("REMOVE " + filename);
+                        }
+                    }
+
+                    while(!checkAllRemoveAcks(filename, numberOfDstoresWithFile)){}
+
+                    for(String dstore : index.keySet()){
+                        if(index.get(dstore).files.containsKey(filename)){
+                            index.get(dstore).files.get(filename).setFalseRemoveAck();
+                        }
+                    }
+
+                    if(numberOfDstoresWithFile == 0){
+                        clientConnection.write("ERROR_FILE_DOES_NOT_EXIST");
+                        return;
+                    }
+
+                    System.out.println("remove complete");
+
+                    mainController.removeOperation(filename);
+
+                    clientConnection.write("REMOVE_COMPLETE");
+
+                } catch (Exception e){
+                    e.printStackTrace();
+                }
+            }
+
             try {
-                message = connection.readLine();
+                message = clientConnection.readLine();
             } catch (Exception e) {
                 return;
             }
         }
+    }
+
+    public boolean checkAllRemoveAcks(String filename, int dstores)
+            throws IOException{
+
+        ConcurrentHashMap<String, FileIndex> index = mainController.getIndex();
+
+        int ackCount = 0;
+
+        for(String dstore : index.keySet()){
+            if(index.get(dstore).files.containsKey(filename)) {
+                FileData fileData = index.get(dstore).getFileData(filename);
+                if (fileData.isRemoveAck()) {
+                    ackCount++;
+                }
+            }
+        }
+
+        return ackCount == dstores;
     }
 }

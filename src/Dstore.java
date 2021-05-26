@@ -17,60 +17,25 @@ public class Dstore {
         this.file_folder = args[3];
     }
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
         Dstore d = new Dstore(args);
         d.start();
     }
 
+    @SuppressWarnings("InfiniteLoopStatement")
     public void start(){
         try {
             InetAddress localhost = InetAddress.getLocalHost();
             Socket socket = new Socket(localhost, 4323);
-            Connection controllerConnection = new Connection(socket);
-            controllerConnection.write("dstore " + port);
+
+            new Thread(new DstoreControllerHandler(socket, this)).start();
 
             ServerSocket ss = new ServerSocket(port);
-            Socket clientSocket = ss.accept();
 
-            Connection clientConnection = new Connection(clientSocket);
-
-            String commandString = clientConnection.readLine();
-
-            while(commandString != null){
-                if (commandString.startsWith("STORE")){
-                    System.out.println("store entered");
-                    String[] storeArguments = commandString.split(" ");
-                    String fileName = storeArguments[1];
-                    int fileSize = Integer.parseInt(storeArguments[2]);
-
-                    clientConnection.write("ACK");
-
-                    byte[] fileContents = new byte[fileSize];
-                    clientConnection.readBytes(fileContents);
-
-                    storeToFile(fileContents, fileName);
-
-                    controllerConnection.write("STORE_ACK " + fileName);
-                } else if (commandString.startsWith("LOAD_DATA")){
-                    System.out.println("load entered");
-                    String[] loadArguments = commandString.split(" ");
-                    String fileName = loadArguments[1];
-
-                    try {
-                        loadFile(fileName, clientConnection);
-                    } catch (Exception e){
-                        break;
-                    }
-                }
-
-                try {
-                    commandString = clientConnection.readLine();
-                } catch (Exception e){
-                    break;
-                }
+            for(;;){
+                Socket clientSocket = ss.accept();
+                new Thread(new DstoreClientHandler(clientSocket, socket, this)).start();
             }
-
-            clientConnection.close();
         } catch (Exception e){
             e.printStackTrace();
         }
@@ -105,5 +70,14 @@ public class Dstore {
         } catch (Exception e){
             connection.close();
         }
+    }
+
+    public boolean removeFile(String filename){
+        File fileToDelete = new File(file_folder + "/" + filename);
+        if(fileToDelete.exists()){
+            System.out.println("entered");
+            return fileToDelete.delete();
+        }
+        return false;
     }
 }

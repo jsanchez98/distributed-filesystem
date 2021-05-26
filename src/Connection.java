@@ -25,6 +25,8 @@ public class Connection {
     }
 
     public void write(String message){
+        System.out.println("writing to " + socket.getPort());
+        System.out.println(message);
         writer.println(message);
         writer.flush();
     }
@@ -35,6 +37,7 @@ public class Connection {
     }
 
     public String readLine() throws IOException {
+        System.out.println("waiting to readline " + socket.getPort());
         return reader.readLine();
     }
 
