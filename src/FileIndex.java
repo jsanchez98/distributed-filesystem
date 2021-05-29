@@ -21,15 +21,32 @@ public class FileIndex {
     }
 }
 
+enum State {
+    store_in_progress,
+    store_complete,
+    remove_in_progress,
+    remove_complete
+}
+
 class FileData {
     private int length;
     private boolean storeAck;
     private boolean removeAck;
+    private State state;
 
     FileData(int length){
         this.length = length;
         storeAck = false;
         removeAck = false;
+        state = State.store_in_progress;
+    }
+
+    public void setState(State state) {
+        this.state = state;
+    }
+
+    public State getState(){
+        return state;
     }
 
     public boolean isRemoveAck() {

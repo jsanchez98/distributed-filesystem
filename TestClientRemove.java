@@ -13,9 +13,6 @@ public class TestClientRemove {
 
             String filename = args[1];
 
-            BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(socket.getInputStream()));
-
             connection.write("REMOVE " + filename);
 
             System.out.println(connection.readLine());
